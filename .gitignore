@@ -1,0 +1,31 @@
+# ===== Java 编译产物 =====
+*.class
+out/
+bin/
+target/
+build/
+classes/
+
+# ===== IntelliJ IDEA 个人配置（不入库，避免换机冲突）=====
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ===== 运行运行时生成的持久化数据文件 =====
+# 这些文件由程序运行自动生成，属于演示数据，不必入库
+# 若老师要求提交示例数据，可用 git add -f 强制加入
+**/user.txt
+**/resource.txt
+**/reserve.txt
+**/operation_log.txt
+
+# ===== 日志与临时文件 =====
+*.log
+*.tmp
+*.bak
+
+# ===== 操作系统文件 =====
+Thumbs.db
+Desktop.ini
+.DS_Store
