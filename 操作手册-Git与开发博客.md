@@ -1,277 +1,191 @@
-# Git + 开发博客 操作手册（Gitee 版）
+# Git + 开发博客 操作手册（GitHub 版）
 
 > 适用：软件构造综合实践 · 20 阶增量迭代
-> 前置环境（已检测通过）：Git 2.45.1 已装，JDK 8 已装，IDEA 2026.1.4 已装
-> 本文所有命令都在 **PowerShell** 里执行，复制粘贴即可
+> 这台机器的状态：Git 2.45.1、JDK 8、IDEA 2026.1.4 都装好了，仓库已建、代码已推、博客已上线
+> 下面命令都在 PowerShell 里执行
 
----
+## 0. 现在已经配好的（不需要重做）
 
-## 第 0 步：我已经替你做好的部分
-
-| 配置项 | 值 | 作用 |
+| 配置项 | 当前值 | 说明 |
 |---|---|---|
-| `user.name` | 徐文昊 | 提交记录里的作者名 |
-| `core.quotepath` | false | 中文文件名在 git 里正常显示，不变成 `\346\226\207` |
-| `init.defaultBranch` | main | 新建仓库默认分支为 main |
-| `core.longpaths` | true | 支持超长路径，避免深层目录报错 |
-| `http.postBuffer` | 500 MB | 大批量推送不易失败 |
-| 仓库骨架 | `桌面\软件构造\` | 已建 `docs/blog`、`.gitignore`、`README.md`、博客模板 |
+| GitHub 账号 | `linyu-dj` | 仓库所有者 |
+| 仓库地址（SSH） | `git@github.com:linyu-dj/software-construction.git` | 已设为 `origin` |
+| 仓库地址（网页） | https://github.com/linyu-dj/software-construction | 公开仓库 |
+| 博客站点 | https://linyu-dj.github.io/software-construction/ | Pages 已开启 |
+| 提交作者 | 徐文昊 / `202483670082@nuist.edu.cn` | `user.name` / `user.email` 已写进全局配置 |
+| SSH 密钥 | `~/.ssh/id_ed25519`，公钥标题 `NUIST-laptop-2026` | 已加进 GitHub，推送免密 |
+| git 代理 | `http.proxy = http://127.0.0.1:7897` | Clash Verge 的本地端口，不配会 `Connection was reset` |
+| 中文文件名 | `core.quotepath = false` | 不会显示成 `\346\226\207` |
 
-系统级已自带：`core.autocrlf=true`（换行符自动转换）、`credential.helper=manager`（凭据自动记住）。
-
----
-
-## 第 1 步：补一个邮箱（唯一还没配的项）
-
-提交作者需要邮箱，且**要和 Gitee 账号绑定的邮箱一致**，否则 Gitee 的贡献统计不认你。
+想核对一遍：
 
 ```powershell
-git config --global user.email "你的邮箱@example.com"
+git config --global --list
+ssh -T git@github.com
 ```
 
-验证：
+`ssh -T` 应该返回 `Hi linyu-dj! You've successfully authenticated, but GitHub does not provide shell access.`
+
+## 1. 代理这件事必须先说清楚
+
+这台机器上 GitHub 直连不通，全靠 Clash Verge 走代理。但**git 不认系统代理**，它只看自己配置里的 `http.proxy`。所以：
 
 ```powershell
-git config --global user.name
-git config --global user.email
+git config --global http.proxy http://127.0.0.1:7897
+git config --global https.proxy http://127.0.0.1:7897
 ```
 
----
+不配这条，`git push` 会报 `Recv failure: Connection was reset`，看起来像 GitHub 挂了，其实只是 git 在裸连。
 
-## 第 2 步：注册 Gitee 并实名认证
-
-1. 打开 https://gitee.com → 右上角「注册」，用手机号注册
-2. 登录后 → 右上角头像 → **设置** → 左侧 **实名认证**
-3. 提交真实姓名 + 身份证号 + 身份证正反面照片
-
-> **为什么现在就要认证**：Gitee Pages（博客网页托管）**必须实名认证后才能开通**，这是平台的硬性要求。认证通常 1 个工作日内通过。
-> 顺带一个限制：免费版 Pages **不支持自动部署**，每次 `push` 后要手动点一次「更新」按钮；自动部署是 Gitee Pages Pro（99 元/年）。课程作业用免费版完全够。
-
----
-
-## 第 3 步：在 Gitee 创建远程仓库（关键：建空仓库）
-
-1. 右上角 **+** → **新建仓库**
-2. 填写：
-   - **仓库名称**：`software-construction`（或 `ruangong`，全小写英文，别用中文）
-   - **仓库介绍**：软件构造综合实践 · 校园资源预约系统 · 20 阶增量迭代
-   - **是否开源**：选 **公开**（私有仓库老师打不开，直接算没交）
-3. **下面三个初始化选项全部不要勾**：
-   - ❌ 使用 Readme 文件初始化这个仓库
-   - ❌ 使用 .gitignore 文件初始化这个仓库
-   - ❌ 使用模版文件初始化这个仓库
-
-> **为什么必须留空**：本地已经有 README 和文件了。如果远程也初始化，两边会有两份互不相干的提交历史，第一次 push 就会被拒（`rejected - non-fast-forward`），得额外做一次合并，纯属给自己找麻烦。
-
-4. 创建成功后，记下仓库地址，形如：
-   `https://gitee.com/你的用户名/software-construction.git`
-
----
-
-## 第 4 步：配置认证方式（SSH 推荐，一次配置永久免密）
-
-### 方案 A：SSH 密钥（推荐）
-
-**① 生成密钥**（一路回车，口令留空即可）：
+副作用也要知道：以后关掉 Clash，所有 HTTPS 的 git 操作都会失败。要临时取消代理：
 
 ```powershell
-ssh-keygen -t ed25519 -C "你的邮箱@example.com"
+git config --global --unset http.proxy
+git config --global --unset https.proxy
 ```
 
-**② 复制公钥内容**（复制整段输出，从 `ssh-ed25519` 到邮箱结尾）：
+好消息是**日常推送走的是 SSH，不经过这个代理配置**，只要 Clash 开着（或你换了别的能连 GitHub 的方式）就没事。
+
+## 2. 认证方式：为什么最后选了 SSH
+
+一开始想用 HTTPS + 凭据管理器（GCM）。结果是：在后台终端里 push 时，GCM 要你在浏览器点授权，但命令行没有交互界面，最后就卡在那里不动，任务跑了几分钟一点输出都没有。
+
+所以改成了 SSH，一次配好永久免密：
+
+**① 生成密钥**（`.ssh` 目录不存在的话先建）：
 
 ```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh"
+ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\id_ed25519" -N '""' -C "202483670082@nuist.edu.cn"
 Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub"
 ```
 
-**③ 粘贴到 Gitee**：
+**② 贴到 GitHub**：打开 https://github.com/settings/ssh/new ，Title 随便写（`NUIST-laptop-2026`），Key 粘贴刚输出的整段公钥（从 `ssh-ed25519` 开头到邮箱结尾），点 Add SSH key。
 
-Gitee → 头像 → **设置** → 左侧 **SSH 公钥** → 标题随便填（如 `我的笔记本`）→ 粘贴公钥 → 确定
-
-**④ 测试连通性**：
+**③ 测试**：
 
 ```powershell
-ssh -T git@gitee.com
+ssh -T git@github.com
 ```
 
-第一次会问 `Are you sure you want to continue connecting?` → 输入 `yes` 回车。
-看到 `Hi 你的用户名! You've successfully authenticated...` 就成功了。
+第一次会问 `Are you sure you want to continue connecting?`，输 `yes` 回车。看到 `Hi linyu-dj!` 就成了。
 
-### 方案 B：HTTPS + 私人令牌（不想碰 SSH 就用这个）
-
-1. Gitee → 设置 → 左侧 **私人令牌** → 生成新令牌 → 勾选 `projects` 权限 → 生成
-2. **令牌只显示一次，立刻复制存好**
-3. 推送时用户名填 Gitee 用户名，密码填**这串令牌**（不是登录密码）
-4. Windows 凭据管理器会记住，之后不再输入
-
-> 用方案 A 的话，仓库地址是 `git@gitee.com:用户名/software-construction.git`
-> 用方案 B 的话，是 `https://gitee.com/用户名/software-construction.git`
-
----
-
-## 第 5 步：本地初始化并首次推送
+如果 22 端口被封，可以强行走 443：
 
 ```powershell
-cd C:\Users\18723\Desktop\软件构造
-
-# 如果目录里还没有 .git，先初始化（我建骨架时已初始化过，这一步会自动跳过）
-git init -b main
-
-# 添加所有文件
-git add -A
-
-# 首次提交
-git commit -m "chore: 初始化仓库骨架、.gitignore 与开发博客目录"
-
-# 关联远程仓库（把地址换成你自己的，SSH 版示例）
-git remote add origin git@gitee.com:你的用户名/software-construction.git
-
-# 首次推送并建立追踪关系
-git push -u origin main
+ssh -T -p 443 git@ssh.github.com
 ```
 
-推送成功后刷新 Gitee 页面，能看到 README、docs、.gitignore 就成功了。
-
-**验证三连**：
+**④ 把远程地址换成 SSH**：
 
 ```powershell
-git remote -v          # 应显示 origin 的 fetch/push 地址
-git log --oneline      # 应有一条提交
-git status             # 应显示 working tree clean
+git remote set-url origin git@github.com:linyu-dj/software-construction.git
 ```
 
----
-
-## 第 6 步：IDEA 接入 Git
-
-IDEA 通常能自动识别，但必须点一次 Test 确认，否则会出现"IDEA 里 Git 灰着用不了"。
-
-1. IDEA → **File → Settings**（`Ctrl+Alt+S`）
-2. 左侧 **Version Control → Git**
-3. `Path to Git executable` 填：`C:\Program Files\Git\cmd\git.exe`
-4. 点 **Test** → 弹出 `Git version is 2.45.1` 即成功
-5. 同一页若提示 "Git user email is not configured"，说明第 1 步没做，回去补
-
-提交界面就会出现在右上角（`Ctrl+K` 提交 / `Ctrl+Shift+K` 推送）。
-
-**在 IDEA 里打开哪个目录**：打开 `桌面\软件构造`（仓库根），不要打开某个 Task 子目录。这样 20 个任务共用一个仓库，Git 面板一眼能看到完整迭代历史。
-
----
-
-## 第 7 步：每个任务的日常提交流程（背下来，20 次都这样）
-
-### IDEA 图形化（推荐）
-
-1. `Ctrl+K` 打开提交窗口 → 勾选要提交的文件（**别把 `out/`、`.idea/` 勾进去**，.gitignore 已挡住）
-2. 填提交信息：`feat(V1.1): 实现用户注册与账号查重`
-3. 点 **Commit**（不是 Commit and Push，先本地提交）
-4. `Ctrl+Shift+K` 推送
-5. 打标签：左侧 **Git** 工具窗口 → **Log** 标签页 → 右键最新提交 → **New Tag** → 输入 `v1.1` → 推送标签
-
-### 命令行（等价，复制用）
+## 3. 每隔一轮的日常提交（20 轮都长这样）
 
 ```powershell
-cd C:\Users\18723\Desktop\软件构造
-
+cd "C:\Users\18723\Desktop\软件构造"
+git status                    # 先看一眼要交什么
 git add -A
 git commit -m "feat(V1.1): 实现用户注册与账号查重"
 git tag -a v1.1 -m "V1.1 用户注册功能"
-git push origin main
-git push origin v1.1
+git push origin main --tags
 ```
 
-### 提交信息规范（老师会看）
+`git push origin main --tags` 一行就把提交和标签都推上去。
 
-| 前缀 | 用途 | 示例 |
+### 提交信息怎么写
+
+| 前缀 | 什么时候用 | 例子 |
 |---|---|---|
-| `feat(版本)` | 新增功能 | `feat(V2.0): 新增校园资源 CRUD` |
-| `refactor(版本)` | 重构不改功能 | `refactor(V3.1): 拆分为三层架构` |
-| `fix(版本)` | 修 bug | `fix(V1.3): 修复重启后数据丢失` |
-| `docs` | 文档博客 | `docs: 补充 V1.3 迭代博客` |
-| `chore` | 杂项配置 | `chore: 更新 .gitignore` |
+| `feat(V版本)` | 加功能 | `feat(V2.0): 新增校园资源增删改查` |
+| `refactor(V版本)` | 只重构不改功能 | `refactor(V3.1): 拆成三层架构` |
+| `fix(V版本)` | 修 bug | `fix(V1.3): 修复重启后数据丢失` |
+| `docs` | 写博客、改文档 | `docs(V1.0): 新增第 1 篇迭代博客` |
+| `chore` | 杂项 | `chore: 更新 .gitignore` |
 
-**绝对不要**：`update`、`修改`、`1`、`提交` 这种信息。20 个任务 20 条有效提交 = 迭代过程可追溯，这是老师给"增量迭代"打分的直接证据。
+别写 `update`、`修改`、`提交` 这类。老师看"增量迭代"就是看提交历史，20 条有意义的提交比什么都直观。
 
----
+## 4. IDEA 接入（这一步容易卡）
 
-## 第 8 步：搭开发博客
+配之前先知道 IDEA 的两个脾气：
 
-### 方案 A：Gitee Pages（有网页链接，推荐）
+**第一，它不知道 Git 装在哪。** 装了 Git ≠ IDEA 能用 Git。必须手动指一次路径：
 
-前提：第 2 步实名认证已通过。
+`File → Settings（Ctrl+Alt+S）→ Version Control → Git`，*Path to Git executable* 填：
 
-1. 进入仓库页 → 顶部 **服务** → **Gitee Pages**
-2. 部署设置：
-   - **部署分支**：`main`
-   - **部署目录**：`docs`
-   - 若下拉框里没有 `docs` 选项，就选根目录 `/`，并把 `docs/index.md` 复制一份到仓库根目录当首页
-3. 点 **启动**（首次）→ 生成访问地址：`https://你的用户名.gitee.io/software-construction`
-4. **以后每次推送完博客，都要回这个页面点一次「更新」**（免费版没有自动部署）
+```
+C:\Program Files\Git\cmd\git.exe
+```
 
-### 方案 B：仓库内 Markdown 直接读（最省事）
+点 **Test**，出现 `Git version 2.45.1` 才算通。
 
-不做 Pages，博客就是 `docs/blog/` 下的 `.md` 文件。Gitee 网页能直接渲染 Markdown，老师点进去就能看，图片也能显示。
-缺点是没有独立博客站点，但课程作业通常认这个。
+**第二，新目录默认"不信任"。** 未信任状态下 IDEA 会禁掉所有 Git 命令，右下角弹的"未安装 Git / Shouldn't be possible to run a Git command in potentially untrusted project"多半就是这个原因。打开项目时看到 Trust Project 的提示，点信任。
 
-### 方案 C：双保险（我的建议）
+**打开哪个目录**：打开仓库根 `C:\Users\18723\Desktop\软件构造`，不要打开 `Task01-V1.0-项目初始化` 这种子文件夹——`.git` 在根上，打开子目录 IDEA 看不到仓库。
 
-`docs/blog/` 里存 Markdown 作为存档，同时把同一篇内容发到 **CSDN / 博客园**（注册即写、免审核、国内可访问），在 README 里放 CSDN 链接。
-好处：老师一点就开，不会遇到 Pages 打不开或需要手动更新的尴尬；坏处是要复制两遍。
+**一个要当心的地方**：20 个任务用的是同一个包名 `campus`、同一个类名 `SystemMain`。别在根项目里把每个任务的 `src` 都标成 Sources Root，那样一份工程里会出现 20 个 `campus.SystemMain`，直接编译冲突。稳妥的做法是双开：根项目管 Git，跑代码时另开窗口打开任务文件夹，或者直接在 PowerShell 里 `.\run.bat`。
 
-> 判断标准：老师只要"能看到开发过程"就选 B；老师要求"有博客链接/能访问"就选 A 或 C。**先按 C 做，最稳。**
+## 5. 博客站点（GitHub Pages）
 
----
+已经开好了，配置是：仓库 `Settings → Pages` → Source 选 **Deploy from a branch** → 分支 `main`、目录 `/docs`。
 
-## 第 9 步：每篇博客怎么写
+每次 push 后自动重新构建，大概一到两分钟生效，不需要像 Gitee 那样手动点"更新"。
 
-模板已放在 `docs/blog/模板-迭代开发日志.md`，直接复制改名。八个小节：
+**唯一要养成的习惯**：`docs/index.md` 里的文章链接要用 `.html` 后缀，不是 `.md`。
 
-1. 本轮要解决什么问题（上一版的痛点）
-2. 改动清单（文件 / 类表格）
-3. 关键设计与实现（核心代码 + 为什么这么写）
-4. **踩过的坑**（最重要，证明是你自己写的）
-5. 验收自测（用例表格 + 运行截图）
-6. 设计原则 / 模式落地
-7. 下一轮计划
-8. 提交号与 tag
+```markdown
+[阅读](blog/01-V1.0-项目初始化.html)
+```
 
-写作节奏（关键，别攒到最后补）：
-**每完成一个任务 → 提交 → 打 tag → 立刻写这一篇**。20 篇写下来正好对应 20 次提交，博客和 Git 历史完全对得上，这是最能拿分的地方。
+原因：Jekyll 会把 `xxx.md` 渲染成 `xxx.html`，站点上根本没有 `.md` 这个地址，写成 `.md` 点进去就是 404（GitHub 那个 Unicorn 页面）。第 1 篇博客上线时我就踩了这一下，全站链接改了一遍。
 
-图片放 `docs/blog/images/`，命名 `01-login.png`、`01-register.png`，和博客同名序号。
+在那边改配置的话还有个小坑：`Settings → Pages` 里的分支和目录是两个 Primer 自定义下拉菜单，不是原生 select，脚本读选项会读到空。手动点开菜单选就行。
 
----
+## 6. 每篇博客怎么写
 
-## 第 10 步：排错速查
+模板在 `docs/blog/模板-迭代开发日志.md`，复制改名成 `NN-V版本-任务名.md`。
 
-| 报错 / 现象 | 原因 | 解决 |
+内容上，老师主要看两段：
+
+- **踩过的坑**：写具体报错原文、当时怎么想的、最后怎么改的。这一段最像"自己写的"，也最容易露馅——编是编不出来的。
+- **验收自测**：把输入和实际输出列出来，最好配上运行截图。
+
+其他几节（改动清单、关键设计、下一轮计划）照实写就行。**别在每节末尾硬加一句总结金句**，也别把"设计原则"那条凑满——没落地就写没落地，写明下一版谁接手，比硬安一个名词可信。
+
+节奏上：每完成一个任务就立刻写这一篇，不要攒到最后补。20 篇刚好对应 20 次提交和 20 个 tag，博客和 Git 历史一对，分数就稳。
+
+图片放 `docs/blog/images/`，命名跟博客序号一致，比如 `01-login.png`。
+
+## 7. 排错速查（都是这次实际遇到的）
+
+| 现象 | 原因 | 解决 |
 |---|---|---|
-| `fatal: not a git repository` | 当前目录不是仓库 | `cd C:\Users\18723\Desktop\软件构造` |
-| `Permission denied (publickey)` | SSH 公钥没加到 Gitee | 重做第 4 步 ②③④ |
-| `Authentication failed` / 401 | HTTPS 用了登录密码而非令牌 | 密码位置填私人令牌 |
-| `rejected - non-fast-forward` | 远程仓库不是空的 | 远程删库重建为**空仓库**，或 `git pull --rebase origin main` 后重推 |
-| 中文文件名显示成 `\346\226\207` | quotepath 设置 | 已配好，若仍出现执行 `git config --global core.quotepath false` |
-| `LF will be replaced by CRLF` | 换行符转换提示 | 无害警告，忽略 |
-| push 卡住/超时 | 网络问题 | 重试；或 `git config --global http.postBuffer 524288000`（已配） |
-| IDEA 里 Git 菜单灰色 | Git 路径未确认 | 第 6 步 Test 一次 |
-| `error: GH001: Large files detected` 之类 | 把 `out/`、压缩包提交了 | `.gitignore` 已挡；若已提交，`git rm -r --cached out` 后重提 |
-| 提交写错了想改 | — | `git reset --soft HEAD~1` 撤销提交但保留改动 |
+| `Recv failure: Connection was reset` | git 没走代理 | 配 `http.proxy`，见第 1 节 |
+| `git push` 卡住几分钟没输出 | GCM 在等浏览器授权，后台终端没法应答 | 改用 SSH |
+| `Permission denied (publickey)` | 公钥没加到 GitHub，或地址还是 HTTPS | 检查 `git remote -v`，重贴公钥 |
+| `unable to access ... 443` | Clash 关了 | 开代理，或临时取消 http.proxy |
+| `LF will be replaced by CRLF` | Windows 换行符转换 | 无害，忽略 |
+| Pages 上点文章 404 | 索引链接写的是 `.md` | 改成 `.html` |
+| Pages 改了没生效 | 构建要一两分钟 | 等一会，强刷 Ctrl+F5 |
+| IDEA 提示"未安装 Git" | 没配 Git 路径 + 目录未信任 | 见第 4 节 |
+| IDEA 里 Git 面板是空的 | 打开的是子文件夹 | 打开仓库根目录 |
+| 中文文件名变成 `\346\226\207` | quotepath | `git config --global core.quotepath false` |
 
-**三条铁律**：
+三条不能碰的红线：
 
-1. **永远不要** `git push -f`（强推会覆盖历史，作业直接判废）
-2. **永远不要**提交 `out/`、`.idea/`、`.class`
-3. 每完成一步先 `git status` 看一眼，确认要提交的文件清单
+1. 不要 `git push -f`，强推覆盖历史，作业直接判废
+2. 不要提交 `out/`、`.idea/`、`*.class`（`.gitignore` 已经挡住了）
+3. 提交前跑一次 `git status`，确认清单里没有意外文件
 
----
+## 8. 交作业前自查
 
-## 交作业前检查清单
-
-- [ ] 仓库是 **public**，用浏览器未登录状态也能打开
-- [ ] `git log --oneline` 里至少有 20 条有意义的提交（每个任务一条）
-- [ ] 20 个 tag 与 20 篇博客一一对应
-- [ ] README 里有任务索引表和博客链接
-- [ ] 仓库里没有 `out/`、`.idea/`、`.class` 等垃圾文件
-- [ ] 最新代码是 V6.0，且能正常编译运行
-- [ ] 博客有运行截图，不是纯文字
-- [ ] 记录下仓库地址，交作业时直接填
+- [ ] 仓库是 public，退出登录状态也能打开
+- [ ] `git log --oneline` 里 20 条提交，每条都能看出是哪个任务
+- [ ] 20 个 tag（`v1.0` ~ `v6.0`）和 20 篇博客对得上
+- [ ] README 的任务索引表和博客链接都点得开
+- [ ] 仓库里没有 `out/`、`.idea/`、`*.class`
+- [ ] 最新代码是 V6.0，能正常编译运行
+- [ ] 博客里有运行截图
+- [ ] 仓库地址记下来，交作业时直接填

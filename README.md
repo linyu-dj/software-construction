@@ -23,7 +23,7 @@
 ├─ ...
 ├─ Task20-V6.0-项目视图拓展/
 ├─ docs/
-│  ├─ index.md                  博客首页（Gitee Pages 入口）
+│  ├─ index.md                  博客首页（GitHub Pages 入口）
 │  └─ blog/                     每完成一个任务写一篇开发博客
 │     ├─ 模板-迭代开发日志.md
 │     └─ 01-V1.0-项目初始化.md ...
