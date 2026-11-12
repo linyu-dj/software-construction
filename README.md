@@ -67,7 +67,7 @@
 ## 快速开始
 
 ```bash
-git clone https://gitee.com/<你的用户名>/software-construction.git
+git clone git@github.com:linyu-dj/software-construction.git
 cd software-construction/Task01-V1.0-项目初始化
 ```
 
