@@ -1,126 +1,138 @@
 package campus;
 
+import campus.common.Roles;
 import campus.entity.User;
 import campus.exception.BusinessException;
-import campus.exception.EmptyParamException;
-import campus.exception.UserExistsException;
 import campus.exception.UserNotFoundException;
 import campus.exception.WrongPasswordException;
+import campus.store.UserStore;
 import campus.utils.FileUtil;
+import campus.utils.TimeUtil;
+import campus.utils.Validator;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 
 /**
  * V1.4 自定义异常 —— 业务失败改用异常表达，入口统一捕获并输出中文提示。
  *
- * 本版本改动：
+ * 本版本改动（功能定稿）：
  * 1. 新增 campus.exception.BusinessException 作为统一父类（继承 RuntimeException）
  * 2. 新增四个子异常：用户已存在、用户不存在、密码错误、参数为空
  * 3. 校验方法与登录流程改为主动抛出异常，不再返回错误字符串
  * 4. main 的菜单循环统一捕获，只打印 message，不调用 printStackTrace
  *
- * 版本约束：业务异常与系统异常分开处理，系统异常不向用户暴露堆栈。
+ * 定稿后的工程加固（tag v1.4.1）：
+ * 1. 用户集合从本类抽出为 campus.store.UserStore（信息专家），本类不再直接操作 List
+ * 2. 校验规则抽出为 campus.utils.Validator，本类只负责流程编排
+ * 3. 角色、密码长度、菜单选项等字面量收敛为常量，消除魔法值
+ * 4. FileUtil 不再吞 IO 异常，改为抛出由入口兜底；本类不再打印文件路径细节
+ * 5. 本类职责收敛为：读输入 → 调校验 → 组装对象 → 落盘 → 展示
  */
 public class SystemMain {
 
-    private static final List<User> USERS = new ArrayList<>();
+    /** 内存用户存储（信息专家：集合与查询都归它） */
+    private static final UserStore USER_STORE = new UserStore();
 
-    private static final int MIN_PASSWORD_LENGTH = 6;
+    /** 菜单选项取值 */
+    private static final String CHOICE_EXIT = "0";
+    private static final String CHOICE_LOGIN = "1";
+    private static final String CHOICE_REGISTER = "2";
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    /** 初始化账号的默认密码 */
+    private static final String DEFAULT_PASSWORD = "123456";
+
+    /** 初始化账号的注册时间：版本初始化时刻，不代表真实注册行为 */
+    private static final String DEFAULT_REGISTER_TIME = "2026-11-13 00:00:00";
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-
-        try {
-            initStorage();
-            printBanner();
-
-            boolean loggedIn = false;
-            while (!loggedIn) {
-                printMainMenu();
-                String choice = scanner.nextLine().trim();
-
-                if ("0".equals(choice)) {
-                    System.out.println("已退出系统，再见。");
-                    break;
-                }
-
-                try {
-                    if ("1".equals(choice)) {
-                        loggedIn = doLogin(scanner);
-                    } else if ("2".equals(choice)) {
-                        doRegister(scanner);
-                    } else {
-                        System.out.println("无效选项，请输入 0、1 或 2。");
-                    }
-                } catch (BusinessException e) {
-                    // 业务失败：只输出中文提示，堆栈对用户没有意义
-                    System.out.println("操作未完成：" + e.getMessage());
-                } catch (Exception e) {
-                    // 非业务异常：同样不打印堆栈，避免暴露内部实现
-                    System.out.println("系统异常，请稍后重试。");
-                }
+        // Scanner 实现 AutoCloseable，用 try-with-resources 保证任何退出路径都会关闭
+        try (Scanner scanner = new Scanner(System.in)) {
+            try {
+                initStorage();
+                printBanner();
+                runMenuLoop(scanner);
+            } catch (Exception e) {
+                // 未被业务捕获的异常一律兜在这里：不打印堆栈，避免暴露内部实现
+                System.out.println("系统异常，请稍后重试。");
             }
-        } finally {
-            scanner.close();
         }
     }
 
     // ==================== 存储初始化 ====================
 
+    /** 确保文件存在 → 加载历史数据 → 空则写入初始化账号 */
     private static void initStorage() {
-        FileUtil.ensureFile();
-        USERS.addAll(FileUtil.loadUsers());
+        if (FileUtil.ensureFile()) {
+            System.out.println("未找到用户数据文件，已自动创建 " + FileUtil.USER_FILE);
+        }
 
-        if (USERS.isEmpty()) {
-            initDefaultUsers();
-            FileUtil.saveUsers(USERS);
-            System.out.println("用户数据文件为空，已写入 " + USERS.size() + " 个初始化账号。");
+        USER_STORE.replaceAll(FileUtil.loadUsers());
+
+        if (USER_STORE.isEmpty()) {
+            seedDefaultUsers();
+            FileUtil.saveUsers(USER_STORE.snapshot());
+            System.out.println("用户数据文件为空，已写入 " + USER_STORE.size() + " 个初始化账号。");
         } else {
-            System.out.println("已从 " + FileUtil.USER_FILE + " 加载 " + USERS.size() + " 个用户。");
+            System.out.println("已从 " + FileUtil.USER_FILE + " 加载 " + USER_STORE.size() + " 个用户。");
         }
     }
 
-    // ==================== 流程 ====================
-
-    /** 注册流程：校验失败抛异常，成功后内存与文件同时更新 */
-    private static void doRegister(Scanner scanner) {
-        System.out.println();
-        System.out.println("---- 用户注册 ----");
-        System.out.print("请输入新账号：");
-        String username = scanner.nextLine().trim();
-        System.out.print("请输入新密码（不少于 " + MIN_PASSWORD_LENGTH + " 位）：");
-        String password = scanner.nextLine().trim();
-
-        validateUsername(username, true);
-        validatePassword(password, true);
-
-        User user = new User(username, password, "student", now());
-        USERS.add(user);
-        FileUtil.appendUser(user);
-
-        System.out.println("注册成功，账号 " + username + " 已创建并保存到 " + FileUtil.USER_FILE + "。");
-        System.out.println("注册信息：" + user);
+    /** 预置演示账号：管理员与学生各一个 */
+    private static void seedDefaultUsers() {
+        USER_STORE.add(new User(Roles.ADMIN, DEFAULT_PASSWORD, Roles.ADMIN, DEFAULT_REGISTER_TIME));
+        USER_STORE.add(new User(Roles.STUDENT, DEFAULT_PASSWORD, Roles.STUDENT, DEFAULT_REGISTER_TIME));
     }
 
-    /** 登录流程：账号不存在、密码错误各自抛出对应异常 */
-    private static boolean doLogin(Scanner scanner) {
-        System.out.println();
-        System.out.println("---- 用户登录 ----");
-        System.out.print("账号：");
-        String username = scanner.nextLine().trim();
-        System.out.print("密码：");
-        String password = scanner.nextLine().trim();
+    // ==================== 菜单循环 ====================
 
-        validateUsername(username, false);
-        validatePassword(password, false);
+    /** 主循环：读选项 → 分发 → 捕获业务异常后继续，登录成功或退出才结束 */
+    private static void runMenuLoop(Scanner scanner) {
+        boolean loggedIn = false;
+        while (!loggedIn) {
+            printMainMenu();
+            String choice = scanner.nextLine().trim();
 
-        User user = findUser(username);
+            if (CHOICE_EXIT.equals(choice)) {
+                System.out.println("已退出系统，再见。");
+                return;
+            }
+
+            try {
+                loggedIn = dispatch(choice, scanner);
+            } catch (BusinessException e) {
+                // 业务失败：message 本身就是给用户看的中文句子，堆栈对用户没有意义
+                System.out.println("操作未完成：" + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("系统异常，请稍后重试。");
+            }
+        }
+    }
+
+    /** 选项分发。返回 true 表示本轮已登录成功，主循环据此结束 */
+    private static boolean dispatch(String choice, Scanner scanner) {
+        if (CHOICE_LOGIN.equals(choice)) {
+            return login(scanner);
+        }
+        if (CHOICE_REGISTER.equals(choice)) {
+            register(scanner);
+            return false;
+        }
+        System.out.println("无效选项，请输入 " + CHOICE_EXIT + "、" + CHOICE_LOGIN + " 或 " + CHOICE_REGISTER + "。");
+        return false;
+    }
+
+    // ==================== 业务流程 ====================
+
+    /** 登录：校验 → 查用户 → 比对密码 → 展示身份。失败路径全部抛异常 */
+    private static boolean login(Scanner scanner) {
+        printSection("用户登录");
+        String username = readLine(scanner, "账号：");
+        String password = readLine(scanner, "密码：");
+
+        Validator.requireValidUsername(USER_STORE, username, false);
+        Validator.requireValidPassword(password, false);
+
+        User user = USER_STORE.findByUsername(username);
         if (user == null) {
             throw new UserNotFoundException("账号 " + username + " 尚未注册，请先注册。");
         }
@@ -132,86 +144,63 @@ public class SystemMain {
         return true;
     }
 
-    // ==================== 校验（失败即抛出） ====================
+    /** 注册：校验 → 组装对象 → 进内存 → 追加落盘 */
+    private static void register(Scanner scanner) {
+        printSection("用户注册");
+        String username = readLine(scanner, "请输入新账号：");
+        String password = readLine(scanner, "请输入新密码（不少于 " + Validator.MIN_PASSWORD_LENGTH + " 位）：");
 
-    /**
-     * 账号校验：空值、非法字符、重复各自抛出不同异常。
-     *
-     * @param checkUnique 注册场景需要查重，登录场景不需要
-     */
-    private static void validateUsername(String username, boolean checkUnique) {
-        if (username.isEmpty()) {
-            throw new EmptyParamException("账号不能为空。");
-        }
-        if (username.contains("|")) {
-            throw new EmptyParamException("账号不能包含竖线符号 |。");
-        }
-        if (checkUnique && findUser(username) != null) {
-            throw new UserExistsException("账号 " + username + " 已存在，请更换。");
-        }
+        Validator.requireValidUsername(USER_STORE, username, true);
+        Validator.requireValidPassword(password, true);
+
+        User user = new User(username, password, Roles.STUDENT, TimeUtil.now());
+        USER_STORE.add(user);
+        FileUtil.appendUser(user);
+
+        System.out.println("注册成功，账号 " + username + " 已创建并保存到 " + FileUtil.USER_FILE + "。");
+        System.out.println("注册信息：" + user);
     }
 
-    /**
-     * 密码校验：空值抛出参数为空异常；长度不足暂用父类异常表达，
-     * 后续若这类规则增多，可再补一个 PasswordInvalidException 子类，
-     * 此处新增不需要改动调用方。
-     *
-     * @param checkStrength 注册场景校验长度，登录场景只校验非空
-     */
-    private static void validatePassword(String password, boolean checkStrength) {
-        if (password.isEmpty()) {
-            throw new EmptyParamException("密码不能为空。");
-        }
-        if (checkStrength && password.length() < MIN_PASSWORD_LENGTH) {
-            throw new BusinessException("密码长度不能少于 " + MIN_PASSWORD_LENGTH + " 位。");
-        }
+    // ==================== 输入与展示 ====================
+
+    /** 打印提示并读取一行，统一去掉首尾空白 */
+    private static String readLine(Scanner scanner, String prompt) {
+        System.out.print(prompt);
+        return scanner.nextLine().trim();
     }
 
-    private static User findUser(String username) {
-        for (User user : USERS) {
-            if (user.getUsername().equals(username)) {
-                return user;
-            }
-        }
-        return null;
-    }
-
-    // ==================== 展示 ====================
-
-    private static void initDefaultUsers() {
-        USERS.add(new User("admin", "123456", "admin", "2026-11-13 00:00:00"));
-        USERS.add(new User("student", "123456", "student", "2026-11-13 00:00:00"));
+    private static void printSection(String title) {
+        System.out.println();
+        System.out.println("---- " + title + " ----");
     }
 
     private static void printBanner() {
         System.out.println("================================================");
         System.out.println("  校园资源预约系统  Campus Resource Reservation System");
-        System.out.println("  版本 V1.4  自定义异常");
+        System.out.println("  版本 V1.4  自定义异常（含工程加固）");
         System.out.println("================================================");
     }
 
     private static void printMainMenu() {
         System.out.println();
-        System.out.println("请选择操作：[1] 登录    [2] 注册    [0] 退出");
+        System.out.println("请选择操作：[" + CHOICE_LOGIN + "] 登录    ["
+                + CHOICE_REGISTER + "] 注册    [" + CHOICE_EXIT + "] 退出");
         System.out.print("请输入选项：");
     }
 
+    /** 登录成功后的身份提示：角色取自 User 字段，不再靠用户名猜测 */
     private static void printWelcome(User user) {
-        String roleLabel = "admin".equals(user.getRole()) ? "ADMIN" : "STUDENT";
+        boolean isAdmin = Roles.ADMIN.equals(user.getRole());
         System.out.println("------------------------------------------------");
         System.out.println("登录成功！欢迎您，" + user.getUsername() + "。");
-        System.out.println("当前身份：" + roleLabel);
+        System.out.println("当前身份：" + (isAdmin ? "ADMIN" : "STUDENT"));
         System.out.println("注册时间：" + user.getRegisterTime());
-        if ("ADMIN".equals(roleLabel)) {
+        if (isAdmin) {
             System.out.println("可用权限：新增 / 查询 / 修改 / 删除校园资源（业务菜单将在后续版本开放）");
         } else {
             System.out.println("可用权限：查询可预约资源、提交预约申请（业务菜单将在后续版本开放）");
         }
         System.out.println("用户信息：" + user);
         System.out.println("------------------------------------------------");
-    }
-
-    private static String now() {
-        return LocalDateTime.now().format(TIME_FORMATTER);
     }
 }

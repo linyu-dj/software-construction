@@ -10,11 +10,17 @@
 Task05-V1.4-自定义异常/
 ├─ src/
 │  └─ campus/
-│     ├─ SystemMain.java            主类：统一捕获，两级异常处理
+│     ├─ SystemMain.java            主类：流程编排，统一捕获
+│     ├─ common/
+│     │  └─ Roles.java              角色常量（admin / student）
 │     ├─ entity/
-│     │  └─ User.java               实体类
+│     │  └─ User.java               实体类，含 equals/hashCode
+│     ├─ store/
+│     │  └─ UserStore.java          内存用户持有者（信息专家）
 │     ├─ utils/
-│     │  └─ FileUtil.java           文件读写
+│     │  ├─ FileUtil.java           文件读写，IO 失败抛 UncheckedIOException
+│     │  ├─ TimeUtil.java           时间格式化
+│     │  └─ Validator.java          参数校验（失败即抛）
 │     └─ exception/
 │        ├─ BusinessException.java            业务异常父类
 │        ├─ UserExistsException.java          用户已存在
@@ -24,6 +30,16 @@ Task05-V1.4-自定义异常/
 ├─ user.txt                         运行时自动生成（已 gitignore）
 └─ run.bat
 ```
+
+### 分层职责
+
+| 类 | 只做什么 | 不做什么 |
+|---|---|---|
+| `SystemMain` | 读输入、调校验、组装对象、落盘、展示 | 不持有用户集合、不遍历查找 |
+| `UserStore` | 持有 `List<User>`、按用户名查找 | 不校验、不读文件 |
+| `Validator` | 判断参数是否合法，不合法抛异常 | 不打印提示、不写文件 |
+| `FileUtil` | 文件与对象列表之间转换 | 不判断业务规则、不打印业务提示 |
+| `User` | 承载四个字段 | 不写任何业务判断 |
 
 ## 异常体系
 
@@ -40,11 +56,11 @@ RuntimeException
 
 | 异常 | 抛出位置 | 触发条件 |
 |---|---|---|
-| `EmptyParamException` | `validateUsername` / `validatePassword` | 账号或密码为空、账号含 `|` |
-| `UserExistsException` | `validateUsername`（注册场景） | 账号已被占用 |
-| `UserNotFoundException` | `doLogin` | 用户名在内存集合中查不到 |
-| `WrongPasswordException` | `doLogin` | 密码与记录不一致 |
-| `BusinessException`（父类） | `validatePassword`（注册场景） | 密码长度不足 6 位 |
+| `EmptyParamException` | `Validator.requireValidUsername` / `requireValidPassword` | 账号或密码为空、账号含 `\|` |
+| `UserExistsException` | `Validator.requireValidUsername`（注册场景） | 账号已被占用 |
+| `UserNotFoundException` | `SystemMain.login` | 用户名在 `UserStore` 中查不到 |
+| `WrongPasswordException` | `SystemMain.login` | 密码与记录不一致 |
+| `BusinessException`（父类） | `Validator.requireValidPassword`（注册场景） | 密码长度不足 6 位 |
 
 ## 本版本改了什么
 
@@ -83,6 +99,25 @@ cd "Task05-V1.4-自定义异常"
 **开闭原则**：新增业务错误类型时，只需在 `exception` 包下加一个子类并在抛出点换用，入口的 `catch (BusinessException e)` 不用改。反过来，如果入口写的是 `catch (UserExistsException e)` 这种按类型逐个列举的写法，每加一种错误都要改入口。
 
 **统一异常出口**：业务异常与系统异常分开两层 `catch`，用户看到的中文提示来自异常的 `message`，技术细节（类名、行号、调用链）全部留在程序内部。
+
+## 定稿后的工程加固（v1.4.1）
+
+功能定稿后再做了一轮结构整理，业务行为与上面八组验收完全一致，只改"代码放哪儿、叫什么、异常往哪走"。
+
+| 改动 | 改之前 | 改之后 | 对应课程概念 |
+|---|---|---|---|
+| 用户集合归属 | `SystemMain` 持有 `List<User>` 并自己遍历查找 | 抽 `UserStore`，集合与查询都在它手里 | 信息专家（GRASP）、低耦合 |
+| 参数校验 | `SystemMain` 内部私有方法 | `Validator` 静态方法，命名 `requireXxx` | 单一职责 |
+| 角色字面量 | `"admin"` 散落在注册、初始化、展示三处 | `Roles.ADMIN` / `Roles.STUDENT` | 消除魔法值 |
+| 时间格式 | `SystemMain` 里的 `DateTimeFormatter` | `TimeUtil.now()` | 工具类封装重复逻辑 |
+| 实体相等性 | 只有 `toString`，同名对象 `equals` 为 `false` | 按 `username` 实现 `equals` / `hashCode` | 对象相等性契约 |
+| IO 失败 | `catch` 里打印一行，返回空集合继续跑 | 抛 `UncheckedIOException`，由入口兜底 | 异常不吞、系统故障与业务失败分离 |
+| 方法命名 | `doLogin` / `doRegister` | `login` / `register` | 命名表达意图，`do` 前缀无信息量 |
+| 字面量 | `"0"` / `"1"` / `"2"`、`"123456"` 直接写在逻辑里 | 统一为类常量 | 消除魔法值 |
+
+**为什么这么改值得单独说明**：`FileUtil` 原先在 `catch` 里打印后返回空列表，程序会带着"0 个用户"继续运行——文件权限错误、磁盘满这类问题要等到用户注册失败才发现。改成抛异常后，入口第一次就能打印"系统异常，请稍后重试"，问题暴露在发生的那一刻，这是快速失败（fail-fast）的意义。
+
+**没有做的事**：没有提前引入 `Result<T>` 统一返回（属于 V2.1），也没有拆 `service` / `dao` 分层（属于任务10）。加固只做"把已有代码放对位置"，不越过后续迭代的边界。
 
 ## 已知局限
 

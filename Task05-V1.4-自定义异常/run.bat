@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 if not exist out mkdir out
-javac -encoding UTF-8 -d out src\campus\SystemMain.java src\campus\entity\User.java src\campus\utils\FileUtil.java src\campus\exception\BusinessException.java src\campus\exception\UserExistsException.java src\campus\exception\UserNotFoundException.java src\campus\exception\WrongPasswordException.java src\campus\exception\EmptyParamException.java
+javac -encoding UTF-8 -d out src\campus\SystemMain.java src\campus\common\Roles.java src\campus\entity\User.java src\campus\exception\BusinessException.java src\campus\exception\UserExistsException.java src\campus\exception\UserNotFoundException.java src\campus\exception\WrongPasswordException.java src\campus\exception\EmptyParamException.java src\campus\store\UserStore.java src\campus\utils\FileUtil.java src\campus\utils\TimeUtil.java src\campus\utils\Validator.java
 if errorlevel 1 (
     echo Build failed.
     pause
