@@ -25,6 +25,7 @@ classes/
 *.tmp
 *.bak
 sources.txt
+testtmp/
 
 # ===== 操作系统文件 =====
 Thumbs.db
