@@ -7,10 +7,11 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 内存资源存储（信息专家）。
+ * 内存资源存储，承担 GRASP 信息专家（Information Expert）职责。
  *
  * 与 UserStore 同一套路：集合在谁手里，查询与编号生成就归谁，
- * 业务层不用自己遍历，也不关心数据从哪来。
+ * 业务层不遍历集合、不关心数据来源。编号生成置于此类，是因为「编号不复用」
+ * 这条不变量依赖集合的当前状态，只有持有集合的对象才能保证它。
  *
  * V2.0 里 findById 仍然返回可能为 null 的对象，任务 8 会改成 Optional，
  * 这正好能对比两种写法。

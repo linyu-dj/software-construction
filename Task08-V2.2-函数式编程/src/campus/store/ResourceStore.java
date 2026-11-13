@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 内存资源存储（信息专家），V2.2 改为函数式查询。
+ * 内存资源存储，承担信息专家（Information Expert）职责，V2.2 改为函数式查询。
  *
  * 与 UserStore 同一套路：集合在谁手里，查询与编号生成就归谁。
  *
@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
  * 读代码时不用在脑子里模拟下标。
  *
  * 每个方法里都保留了旧 for 循环写法（注释形式），方便对照两种写法的差别。
- * 注意：查询方法只读集合，不改原集合，也不碰文件。
+ * 约束：查询方法只读集合，不修改原集合、不做 IO；返回列表为新建副本，
+ * 调用方修改副本不影响容器状态。该约束使同一查询可重复调用且结果稳定。
  */
 public class ResourceStore {
 

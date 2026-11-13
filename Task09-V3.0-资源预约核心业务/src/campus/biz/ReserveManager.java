@@ -25,15 +25,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 预约业务类（V3.0）。
+ * 预约业务类（V3.0），承担 GRASP 控制器职责，并协调两条业务线的状态。
  *
  * 这一轮系统第一次出现「两条业务线互相影响」：审核通过要改资源状态，
  * 取消已通过的预约要把资源放回来，删除资源要先看有没有已通过的预约。
  *
- * 现在这些联动都写在同一个类里，ResourceManager 也直接拿到了 ReserveStore。
- * 这种耦合是这一阶段刻意保留的：任务 10 会用三层架构把它拆开。
+ * 当前这些联动集中于同一个类，ResourceManager 也直接持有 ReserveStore。
+ * 该跨域耦合是本阶段的有意设计债：任务 10 分层时替换为服务层调用。
+ * 提前拆分会使下一轮失去可分析的具体问题，因此此处保留。
  *
- * 所有方法返回 Result；业务校验失败抛自定义异常，方法内部捕获后转成 Result.fail。
+ * 方法契约：全部返回 Result；业务校验失败抛自定义异常，方法内部捕获后转成
+ * Result.fail。异常保证「不满足即中止」，Result 负责向视图层交付可读结论。
  */
 public class ReserveManager {
 

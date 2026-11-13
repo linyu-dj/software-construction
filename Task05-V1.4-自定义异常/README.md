@@ -123,3 +123,12 @@ cd "Task05-V1.4-自定义异常"
 
 - `catch (Exception e)` 目前只打印"系统异常，请稍后重试"，没有写日志。真实项目需要把堆栈落到日志文件，否则线上问题无从排查；本课程范围外。
 - 密码长度不足暂用父类 `BusinessException` 表达，语义上不如独立子类精确；当前只有一条规则，等规则增多再拆分。
+
+## 单元测试
+
+本目录包含 27 条单元测试，使用纯 Java 断言实现，不引入第三方测试框架，源码位于 `test/campus/test/`：
+
+- `UserTest` 5 条、`ValidatorTest` 9 条、`UserStoreTest` 8 条、`FileUtilTest` 5 条
+- 基础设施：`Assert` 提供断言与失败信息，`TestRunner` 负责逐条执行、汇总并通过退出码返回结果
+
+运行方式：双击 `test.bat`，或在该目录下执行 `test.bat`。测试在 `testtmp` 临时目录中运行，不会修改演示数据文件；全部通过时输出 `ALL UNIT TESTS PASSED`。

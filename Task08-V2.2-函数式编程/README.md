@@ -122,3 +122,12 @@ int max = resources.stream()
 
 - `search` 同时承担「按状态」和「按名称」两种筛选，参数可空表示不限，语义上依赖调用方约定。等任务 10 分层之后可以拆成两个明确的查询方法。
 - 模糊查询只匹配名称，没有匹配类型或位置，任务书也没要求。
+
+## 单元测试
+
+本目录包含 23 条单元测试，使用纯 Java 断言实现，不引入第三方测试框架，源码位于 `test/campus/test/`：
+
+- `ResourceStoreTest` 13 条（Optional、组合查询、编号）、`ResourceManagerTest` 10 条
+- 基础设施：`Assert` 提供断言与失败信息，`TestRunner` 负责逐条执行、汇总并通过退出码返回结果
+
+运行方式：双击 `test.bat`，或在该目录下执行 `test.bat`。测试在 `testtmp` 临时目录中运行，不会修改演示数据文件；全部通过时输出 `ALL UNIT TESTS PASSED`。

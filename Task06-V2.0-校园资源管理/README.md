@@ -108,3 +108,12 @@ resource.txt   id|name|type|status|location|description
 - 学生尝试越权增删改，在控制台层面没有入口，这条只能通过直接调 `ResourceManager` 验证，留到单元测试覆盖。
 - 删除校验里的"存在预约记录禁止删除"目前是钩子方法返回 `false`，任务 9 接入预约模块后替换为真实查询。
 - 同名资源没有做唯一性校验（任务书标注为可选）。
+
+## 单元测试
+
+本目录包含 26 条单元测试，使用纯 Java 断言实现，不引入第三方测试框架，源码位于 `test/campus/test/`：
+
+- `ResourceStatusTest` 6 条、`ResourceStoreTest` 8 条、`ResourceManagerTest` 12 条（含越权调用）
+- 基础设施：`Assert` 提供断言与失败信息，`TestRunner` 负责逐条执行、汇总并通过退出码返回结果
+
+运行方式：双击 `test.bat`，或在该目录下执行 `test.bat`。测试在 `testtmp` 临时目录中运行，不会修改演示数据文件；全部通过时输出 `ALL UNIT TESTS PASSED`。

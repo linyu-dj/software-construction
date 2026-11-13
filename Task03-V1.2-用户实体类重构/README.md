@@ -65,3 +65,12 @@ IDEA 里打开本文件夹，把 `src` 标为 Sources Root 后运行 `SystemMain
 - 数据仍在内存里，退出即丢 → V1.3 落盘到 `user.txt`
 - 业务失败仍返回字符串提示，无法按错误类型分流 → V1.4 引入自定义异常
 - `findUser` 按用户名线性遍历，用户量大时是 O(n)；本课程规模可接受，V3.x 三层架构时会改为按 ID 索引
+
+## 单元测试
+
+本目录包含 5 条单元测试，使用纯 Java 断言实现，不引入第三方测试框架，源码位于 `test/campus/test/`：
+
+- `UserTest` 5 条（全参 / 无参构造、setter 独立性、角色变更、`toString`）
+- 基础设施：`Assert` 提供断言与失败信息，`TestRunner` 负责逐条执行、汇总并通过退出码返回结果
+
+运行方式：双击 `test.bat`，或在该目录下执行 `test.bat`。测试在 `testtmp` 临时目录中运行，不会修改演示数据文件；全部通过时输出 `ALL UNIT TESTS PASSED`。
